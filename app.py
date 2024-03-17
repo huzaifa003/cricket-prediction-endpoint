@@ -1,35 +1,42 @@
-
-
-from flask import Flask, jsonify, request
-import pickle
-import pandas as pd
+from flask import Flask, request, jsonify
+from joblib import load
+import numpy as np
 
 app = Flask(__name__)
 
-# Load the pre-trained model
-model_filename = 'rf_model.pkl'
-with open(model_filename, 'rb') as file:
-    model = pickle.load(file)
+# Load your trained model
+# Make sure to replace 'path/to/your/model.joblib' with the actual path to your model file
+model = load('random_forest_model.joblib')
 
 @app.route('/predict', methods=['POST'])
 def predict():
-    # Get the data from the POST request.
     data = request.get_json(force=True)
 
-    # Convert data into DataFrame
-    try:
-        input_data = pd.DataFrame([data])
-        # Ensure the input data matches the model features
-        features = ['matches', 'innings', 'not_out', 'runs', 'average_score', 'ball_faced', 'strike_rate', '100s', '50', '0s', '4s', '6s']
-        input_data = input_data[features]
+    # Extracting the input features from the request
+    player = data.get('player')
+    opposition = data.get('opposition')
+    bf = float(data.get('balls_faced', 0))  # Default to 0 if not provided
+    ov = float(data.get('overs', 0))        # Default to 0 if not provided
 
-        # Make prediction using the model
-        prediction = model.predict(input_data)
+    # Assuming 'test_X' is prepared and available. You might need to adjust this part
+    # based on how your model was trained and how your data needs to be prepared.
+    # This example assumes that the input features for the prediction are only 'bf' and 'ov'
+    # and that the model expects a 2D array-like structure with these features.
 
-        # Return the prediction
-        return jsonify(prediction.tolist())
-    except Exception as e:
-        return jsonify({"error": str(e)})
+    # Prepare the features for prediction
+    features = np.array([[1, 1, bf, ov]])  # Assuming the model expects a 2D array-like structure
+
+    # Make prediction
+    preds = model.predict(features)
+    predicted_runs = preds.astype(int).tolist()
+
+    # Return the prediction result
+    return jsonify({
+        'player': player,
+        'opposition': opposition,
+        'predicted_runs': predicted_runs,
+        'message': f"{player}'s overall run predicted is {predicted_runs} Against {opposition}"
+    })
 
 if __name__ == '__main__':
-    app.run(port=5000, debug=True)
+    app.run(port=5000,debug=True)
