@@ -7,9 +7,15 @@ from flask_login import LoginManager, UserMixin, login_user, login_required, log
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 
+import pandas as pd
+
+
 app = Flask(__name__, static_url_path='', static_folder='static')
 
 app.secret_key = 'your_secret_key'
+
+# Load the CSV data into a pandas DataFrame
+df = pd.read_csv('Batsman_Data.csv')
 
 DATABASE = 'app.db'
 
@@ -131,6 +137,40 @@ def predict():
         'predicted_runs': predicted_runs,
         'message': f"{player}'s overall run predicted is {predicted_runs} Against {opposition}"
     })
+
+
+@app.route('/search_batsmen', methods=['GET'])
+def search_batsment():
+    # Get the query parameter for search
+    query = request.args.get('query', '').lower()
+    
+    # Check if the query string is in any column
+    result_df = df.apply(lambda column: column.astype(str).str.lower().str.contains(query)).any(axis=1)
+    
+    # Filter the DataFrame based on the search result
+    filtered_df = df[result_df]
+    
+    # Convert the search result to a dictionary list and return as JSON
+    result = filtered_df.to_dict(orient='records')
+    return jsonify(result)
+
+
+@app.route('/batsmen', methods=['GET'])
+def get_batsmen():
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 10, type=int)  # Default to 10 items per page
+    
+    start = (page - 1) * per_page
+    end = start + per_page
+    
+    batsmen_data = df[start:end].to_dict(orient='records')
+    return jsonify(batsmen_data)
+
+
+@app.route('/batsmen_data')
+def bastmen():
+    return app.send_static_file('batsmen.html')
+
 
 if __name__ == '__main__':
     app.run(port=5000,debug=True)
