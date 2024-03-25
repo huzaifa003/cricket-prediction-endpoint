@@ -1,12 +1,106 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from joblib import load
 import numpy as np
 
-app = Flask(__name__)
+from flask import Flask, request, g, redirect, url_for, render_template, flash
+from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from werkzeug.security import generate_password_hash, check_password_hash
+import sqlite3
+
+app = Flask(__name__, static_url_path='', static_folder='static')
+
+app.secret_key = 'your_secret_key'
+
+DATABASE = 'app.db'
+
+
+# Database connection and query functions
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+
+def get_db_connection():
+    conn = sqlite3.connect(DATABASE)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def create_users_table():
+    conn = get_db_connection()
+    conn.execute('''CREATE TABLE IF NOT EXISTS users 
+                    (id INTEGER PRIMARY KEY, username TEXT UNIQUE, password TEXT)''')
+    conn.commit()
+    conn.close()
+
+create_users_table()
+
+class User(UserMixin):
+    def __init__(self, id_, username):
+        self.id = id_
+        self.username = username
+
+    @staticmethod
+    def get(user_id):
+        conn = get_db_connection()
+        user = conn.execute('SELECT * FROM users WHERE id = ?', (user_id,)).fetchone()
+        conn.close()
+        if user:
+            return User(id_=user['id'], username=user['username'])
+        return None
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.get(user_id)
+
+@app.route('/signup', methods=['GET', 'POST'])
+def signup():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        hashed_password = generate_password_hash(password)
+        conn = get_db_connection()
+        try:
+            conn.execute('INSERT INTO users (username, password) VALUES (?, ?)', (username, hashed_password))
+            conn.commit()
+        except sqlite3.IntegrityError:
+            flash('Username already exists.')
+            return redirect(url_for('signup'))
+        finally:
+            conn.close()
+        return redirect(url_for('login'))
+    return render_template('signup.html')
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        
+        conn = get_db_connection()
+        user = conn.execute('SELECT * FROM users WHERE username = ?', (username,)).fetchone()
+        conn.close()
+        if user and check_password_hash(user['password'], password):
+            user_obj = User(id_=user['id'], username=user['username'])
+            login_user(user_obj)
+            return redirect(url_for('protected'))
+        flash('Invalid username or password.')
+        print("invalid username and password")
+    return render_template('login.html')
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
+
 
 # Load your trained model
 # Make sure to replace 'path/to/your/model.joblib' with the actual path to your model file
 model = load('random_forest_model.joblib')
+
+
+@app.route('/predict', methods=['GET'])
+def predict_frontend():
+    return send_from_directory(app.static_folder, 'prediction.html')
 
 @app.route('/predict', methods=['POST'])
 def predict():
