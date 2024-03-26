@@ -172,5 +172,46 @@ def bastmen():
     return app.send_static_file('batsmen.html')
 
 
+
+# Load the Bowler data into a pandas DataFrame
+df_bowlers = pd.read_csv('Bowler_data.csv')
+
+
+
+
+@app.route('/search_bowler', methods=['GET'])
+def search_bowler():
+    # Get the query parameter for search
+    query = request.args.get('query', '').lower()
+    
+    # Check if the query string is in any column
+    result_df = df_bowlers.apply(lambda column: column.astype(str).str.lower().str.contains(query)).any(axis=1)
+    
+    # Filter the DataFrame based on the search result
+    filtered_df = df_bowlers[result_df]
+    
+    # Convert the search result to a dictionary list and return as JSON
+    result = filtered_df.to_dict(orient='records')
+    return jsonify(result)
+
+
+@app.route('/bowler', methods=['GET'])
+def get_bowler():
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 10, type=int)  # Default to 10 items per page
+    
+    start = (page - 1) * per_page
+    end = start + per_page
+    
+    bowler_data = df_bowlers[start:end].to_dict(orient='records')
+    return jsonify(bowler_data)
+
+
+
+
+@app.route('/bowler_data')
+def bowler_data():
+    return app.send_static_file('bowler.html')
+
 if __name__ == '__main__':
     app.run(port=5000,debug=True)

@@ -13,13 +13,17 @@
     <style>
         /* Style for clickable table cells */
         .clickable-cell {
-            cursor: pointer; /* Change cursor to indicate clickable items */
-            transition: background-color 0.3s ease; /* Smooth transition for background color change */
+            cursor: pointer;
+            /* Change cursor to indicate clickable items */
+            transition: background-color 0.3s ease;
+            /* Smooth transition for background color change */
         }
-        
+
         .clickable-cell:hover {
-            background-color: #e9ecef; /* Light background color on hover */
-            color: #007bff; /* Optional: change text color on hover */
+            background-color: #e9ecef;
+            /* Light background color on hover */
+            color: #007bff;
+            /* Optional: change text color on hover */
         }
     </style>
 
@@ -62,23 +66,26 @@
             </div>
         </div>
 
-        <div class="table-responsive"> <!-- Wrap table for responsiveness -->
+        <div style="min-width: fit-content;" class="table-responsive"> <!-- Wrap table for responsiveness -->
             <table class="table table-hover table-striped" id="batsmenTable">
-                <thead class="thead-dark"> <!-- Use thead-dark for contrast -->
+                <thead class="thead-dark">
                     <tr>
-                        <th>Bat1</th> <!-- Assuming 'Bat1' is the correct column name for the batsman's name -->
+                        <th>Overs</th>
+                        <th>Mdns (Maidens)</th>
                         <th>Runs</th>
-                        <th>BF</th>
-                        <th>SR</th>
-                        <th>4s</th>
-                        <th>6s</th>
+                        <th>Wkts (Wickets)</th>
+                        <th>Econ (Economy)</th>
+                        <th>Ave (Average)</th>
+                        <th>SR (Strike Rate)</th>
                         <th>Opposition</th>
                         <th>Ground</th>
                         <th>Start Date</th>
                         <th>Match ID</th>
-                        <th>Batsman</th> <!-- Adjusted from 'Batsman ID' to 'Batsman' to match the data columns -->
+                        <th>Bowler</th>
+                        <th>Player ID</th>
                     </tr>
                 </thead>
+
                 <tbody id="batsmenBody">
                     <!-- Data rows will be appended here -->
                 </tbody>
@@ -93,7 +100,7 @@
 
 
         function fetchData(page) {
-            fetch(`/batsmen?page=${page}&per_page=${perPage}`)
+            fetch(`/bowler?page=${page}&per_page=${perPage}`)
                 .then(response => response.json())
                 .then(data => {
                     if (data.length === 0) {
@@ -106,7 +113,7 @@
                     data.forEach(item => {
                         let row = document.createElement('tr'); // Create a table row
                         // Define columns you want to include
-                        const columns = ['Bat1', 'Runs', 'BF', 'SR', '4s', '6s', 'Opposition', 'Ground', 'Start Date', 'Match_ID', 'Batsman'];
+                        const columns = ['Overs', 'Mdns', 'Runs', 'Wkts', 'Econ', 'Ave', 'SR', 'Opposition', 'Ground', 'Start Date', 'Match_ID', 'Bowler', 'Player_ID'];
                         columns.forEach(col => {
                             let cell = document.createElement('td'); // Create a table cell
                             cell.textContent = item[col] || ''; // Set cell text content
@@ -114,8 +121,8 @@
                             cell.addEventListener('click', function () {
                                 // Assuming 'searchQuery' is the ID of your search box
                                 document.getElementById('searchQuery').value = this.textContent;
-                                // Additional actions, e.g., hiding the modal or submitting the form, can be added here
                                 document.getElementById('searchButton').click()
+                                // Additional actions, e.g., hiding the modal or submitting the form, can be added here
                             });
                             row.appendChild(cell); // Append cell to row
                         });
@@ -160,7 +167,7 @@
             document.getElementById('resultsContainer').style.display = 'none';
             document.getElementById('resultsContainer').innerHTML = '';
 
-            fetch(`/search_batsmen?query=${encodeURIComponent(query)}`)
+            fetch(`/search_bowler?query=${encodeURIComponent(query)}`)
                 .then(response => response.json())
                 .then(data => {
                     // Hide loader
@@ -169,7 +176,25 @@
                     const resultsContainer = document.getElementById('resultsContainer');
                     if (data.length > 0) {
                         data.forEach(item => {
-                            const resultItem = `<p><strong>${item.Bat1}</strong> - ${item.Runs} runs, ${item['4s']} fours, ${item['6s']} sixes against ${item.Opposition} at ${item.Ground} on ${item['Start Date']}</p>`;
+                            const econ = item.Econ !== '-' ? `Econ: ${item.Econ}, ` : '';
+                            const ave = item.Ave !== '-' ? `Ave: ${item.Ave}, ` : '';
+                            const sr = item.SR !== '-' ? `SR: ${item.SR}, ` : '';
+
+                            const resultItem = `
+    <p>
+        <strong>${item.Bowler}</strong> - 
+        ${item.Wkts} wickets, 
+        ${item.Overs} overs, 
+        ${item.Mdns} maidens, 
+        ${item.Runs} runs, 
+        ${econ}${ave}${sr}
+        against ${item.Opposition} 
+        at ${item.Ground} 
+        on ${item['Start Date']}
+        <br>Match ID: ${item.Match_ID}, 
+        Player ID: ${item.Player_ID}
+    </p>`;
+
                             resultsContainer.innerHTML += resultItem;
                         });
                     } else {
