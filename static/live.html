@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Matches</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.2/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+
+
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+
+        .match-card {
+            transition: transform .2s;
+            /* Animation for hover effect */
+            margin-bottom: 20px;
+            /* Spacing between cards */
+        }
+
+        .match-card:hover {
+            transform: scale(1.05);
+            /* Slightly enlarge cards on hover */
+            box-shadow: 0 4px 8px rgba(0, 0, 0, .1);
+            /* Add shadow effect on hover */
+        }
+
+        .card-img-top {
+            width: 100%;
+            height: 150px;
+            /* Fixed height for images */
+            object-fit: cover;
+            /* Ensure images cover the card top area */
+        }
+
+        .card-title {
+            color: #007bff;
+            /* Theme color for titles */
+            font-weight: bold;
+        }
+
+        .card-text {
+            color: #343a40;
+            /* Darker text color for contrast */
+        }
+
+        .container {
+            padding-top: 20px;
+        }
+
+        h2 {
+            color: #007bff;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+    </style>
+
+
+</head>
+
+<body>
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="/">Cricket Dashboard</a>
+            <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="prediction">Match Predictions</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="bowler_data">Bowler Data</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="batsmen_data">Batsmen Data</a>
+                    </li>
+                    <li class="nav-item active">
+                        <a class="nav-link" href="live">Live Matches</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+    
+    <div class="container mt-4">
+        <h2>Live Matches</h2>
+        <div id="matchesContainer" class="row"></div> <!-- Container for match cards -->
+    </div>
+
+
+</body>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        fetch('/live_matches') // Ensure this points to your Flask endpoint
+            .then(response => response.json())
+            .then(data => {
+                const matchesContainer = document.getElementById('matchesContainer');
+                data.data.forEach(match => {
+                    const card = document.createElement('div');
+                    card.className = 'col-lg-4 col-md-6 mb-4';
+                    card.innerHTML = `
+                    <div class="card match-card h-100">
+                        <!-- Display the first team's image as the card image -->
+                        <img src="${match.teamInfo[0].img}" class="card-img-top" alt="${match.teamInfo[0].name}">
+                        <div class="card-body">
+                            <h5 class="card-title">${match.name}</h5>
+                            <p class="card-text"><strong>Status:</strong> ${match.status}</p>
+                            <p class="card-text"><strong>Venue:</strong> ${match.venue}</p>
+                            <p class="card-text"><strong>Date:</strong> ${match.date}</p>
+                            ${match.score.map(score => `
+                                <div class="score-summary">
+                                    <strong>${score.inning}:</strong> 
+                                    ${score.r} runs, ${score.w} wickets, ${score.o} overs
+                                </div>
+                            `).join('')}
+                        </div>
+                        <div class="card-footer">
+                            <!-- Inline team images with names for a compact display -->
+                            ${match.teamInfo.map(team => `
+                                <img src="${team.img}" alt="${team.name}" title="${team.name}" style="width: 24px; height: 24px; object-fit: cover;"> ${team.shortname}
+                            `).join(' vs ')}
+                        </div>
+                    </div>
+                `;
+                    matchesContainer.appendChild(card);
+                });
+            })
+            .catch(error => console.error('Error loading match data:', error));
+    });
+
+
+</script>
+
+</html>

@@ -9,6 +9,8 @@ import sqlite3
 
 import pandas as pd
 
+import requests
+
 
 app = Flask(__name__, static_url_path='', static_folder='static')
 
@@ -104,7 +106,7 @@ def logout():
 model = load('random_forest_model.joblib')
 
 
-@app.route('/predict', methods=['GET'])
+@app.route('/prediction', methods=['GET'])
 def predict_frontend():
     return send_from_directory(app.static_folder, 'prediction.html')
 
@@ -212,6 +214,28 @@ def get_bowler():
 @app.route('/bowler_data')
 def bowler_data():
     return app.send_static_file('bowler.html')
+
+
+@app.route('/live_matches', methods=['GET'])
+def get_live_matches():
+    api_url = 'https://api.cricapi.com/v1/currentMatches?apikey=f83f0d13-0caf-4c22-b23c-1b86d52af79b&offset=0'
+    response = requests.get(api_url)
+    if response.status_code == 200:
+        # If request was successful, return the JSON data
+        return jsonify(response.json())
+    else:
+        # Handle errors or unsuccessful responses
+        return jsonify({'error': 'Failed to fetch live matches data'}), response.status_code
+
+
+@app.route("/live", methods = ['GET'])
+def live():
+    return app.send_static_file('live.html')
+
+
+@app.route("/")
+def index():
+    return app.send_static_file('index.html')
 
 if __name__ == '__main__':
     app.run(port=5000,debug=True)
