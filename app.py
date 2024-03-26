@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify, send_from_directory
-from joblib import load
+import joblib
 import numpy as np
 
 from flask import Flask, request, g, redirect, url_for, render_template, flash
@@ -101,44 +101,84 @@ def logout():
     return redirect(url_for('login'))
 
 
-# Load your trained model
-# Make sure to replace 'path/to/your/model.joblib' with the actual path to your model file
-model = load('random_forest_model.joblib')
+
+# Load the model and model columns
+rf_model = joblib.load('rf_model.pkl')
+model_columns = joblib.load('model_columns.pkl')
+
+
+from flask import Flask, render_template
+import pandas as pd
+import os
+
+app = Flask(__name__)
+
+# Assuming your CSV files are in the same directory as your Flask app
+BOWLER_DATA_PATH = 'Bowler_data.csv'
+BATSMEN_DATA_PATH = 'Batsman_Data.csv'
+
+
+def clean_opposition(dataframe):
+    """Remove the 'v ' prefix from the Opposition column."""
+    dataframe['Opposition'] = dataframe['Opposition'].str.replace('v ', '', regex=False)
+    
+    return dataframe
 
 
 @app.route('/prediction', methods=['GET'])
 def predict_frontend():
-    return send_from_directory(app.static_folder, 'prediction.html')
+    # Load datasets
+    bowler_df = pd.read_csv(BOWLER_DATA_PATH)
+    batsmen_df = pd.read_csv(BATSMEN_DATA_PATH)
+    
+    bowler_df = clean_opposition(bowler_df)
+    batsmen_df = clean_opposition(batsmen_df)
+
+     # Extract player names and remove duplicates by converting to a set
+    bowlers = set(bowler_df['Bowler'].unique())
+    batsmen = set(batsmen_df['Batsman'].unique())
+    
+    # Combine both sets into one sorted list
+    players = sorted(bowlers.union(batsmen))
+    
+
+    # Example of extracting unique team names after cleaning, for team selection dropdown
+    teams = sorted(set(bowler_df['Opposition'].unique()).union(set(batsmen_df['Opposition'].unique())))
+
+    # Pass the combined player names to the template
+    return render_template('prediction.html', players=players, teams=teams)
+    
+
+
+
+def preprocess_user_input(data):
+    # One-hot encode the 'Player' and 'Opposition' fields
+    encoded_data = pd.get_dummies(data, columns=['Player', 'Opposition'])
+    
+    # Create a DataFrame for missing columns with default value of 0
+    missing_cols = {col: [0] * len(encoded_data) for col in model_columns if col not in encoded_data}
+    missing_data = pd.DataFrame(missing_cols)
+    
+    # Concatenate the original encoded data with the missing columns DataFrame
+    combined_data = pd.concat([encoded_data, missing_data], axis=1)
+    
+    # Ensure the order of columns matches the training data
+    final_data = combined_data.reindex(columns=model_columns, fill_value=0)
+    
+    return final_data
+
 
 @app.route('/predict', methods=['POST'])
-def predict():
+def predict_runs():
     data = request.get_json(force=True)
-
-    # Extracting the input features from the request
-    player = data.get('player')
-    opposition = data.get('opposition')
-    bf = float(data.get('balls_faced', 0))  # Default to 0 if not provided
-    ov = float(data.get('overs', 0))        # Default to 0 if not provided
-
-    # Assuming 'test_X' is prepared and available. You might need to adjust this part
-    # based on how your model was trained and how your data needs to be prepared.
-    # This example assumes that the input features for the prediction are only 'bf' and 'ov'
-    # and that the model expects a 2D array-like structure with these features.
-
-    # Prepare the features for prediction
-    features = np.array([[1, 1, bf, ov]])  # Assuming the model expects a 2D array-like structure
-
-    # Make prediction
-    preds = model.predict(features)
-    predicted_runs = preds.astype(int).tolist()
-
-    # Return the prediction result
-    return jsonify({
-        'player': player,
-        'opposition': opposition,
-        'predicted_runs': predicted_runs,
-        'message': f"{player}'s overall run predicted is {predicted_runs} Against {opposition}"
-    })
+    try:
+        input_data = pd.DataFrame([data])
+        preprocessed_input = preprocess_user_input(input_data)
+        prediction = rf_model.predict(preprocessed_input)
+        print(prediction[0])
+        return jsonify({'predicted_runs': prediction[0], 'message': 'The Player {} is predicted to score {} runs against team {}'.format(data['Player'], prediction[0], data['Opposition'])})
+    except Exception as e:
+        return jsonify({'error': str(e)})
 
 
 @app.route('/search_batsmen', methods=['GET'])
@@ -238,4 +278,4 @@ def index():
     return app.send_static_file('index.html')
 
 if __name__ == '__main__':
-    app.run(port=5000,debug=True)
+    app.run(port=4000,debug=True)

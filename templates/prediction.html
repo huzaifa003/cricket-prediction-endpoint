@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prediction Form</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.css">
+    <script src="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css" rel="stylesheet" />
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
+    <style>
+        body {
+            background-color: #f5f5f5;
+        }
+
+        .card {
+            margin-top: 20px;
+            box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2);
+        }
+
+        #predictionResult .alert {
+            box-shadow: 0 4px 6px 0 rgba(0, 0, 0, 0.1);
+            border-radius: 0.5rem;
+        }
+    </style>
+
+</head>
+
+<body>
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="/">Cricket Dashboard</a>
+            <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav"
+                aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item active">
+                        <a class="nav-link" href="predict">Match Predictions</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="bowler_data">Bowler Data</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="batsmen_data">Batsmen Data</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="live">Live Matches</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+
+
+    <div class="container mt-5">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card" data-aos="fade-up">
+                    <div class="card-header text-center">Cricket Run Prediction</div>
+                    <div class="card-body">
+                        <form id="predictionForm">
+                            <div class="form-group">
+                                <label for="playerSelect">Player Name:</label>
+                                <select id="playerSelect" name="player" class="form-control" required>
+                                    <option value="">Select a player</option>
+                                    {% for player in players %}
+                                    <option value="{{ player }}">{{ player }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <div class="form-group">
+                                    <label for="teamSelect">Opposition Name:</label>
+                                    <select id="teamSelect" name="team" class="form-control" required>
+                                        <option value="">Select a team</option>
+                                        {% for team in teams %}
+                                        <option value="{{ team }}">{{ team }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="balls_faced">Balls Faced:</label>
+                                <input type="number" id="balls_faced" name="balls_faced" class="form-control" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="overs">Overs:</label>
+                                <input type="number" id="overs" name="overs" class="form-control" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Predict Runs</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="predictionResult" class="mt-4" style="display: none;">
+        <!-- Content will be dynamically inserted here -->
+    </div>
+
+
+    <script>
+
+        $(document).ready(function () {
+            $('#playerSelect').select2({
+                placeholder: "Select a player",
+                allowClear: true
+            });
+
+            // Initialize Select2 for the new team select
+            $('#teamSelect').select2({
+                placeholder: "Select a team",
+                allowClear: true
+            });
+        });
+
+
+
+        document.getElementById('predictionForm').addEventListener('submit', function (e) {
+            e.preventDefault(); // Prevent the default form submission
+
+            const player = document.getElementById('playerSelect').value;
+            const opposition = document.getElementById('teamSelect').value;
+            const ballsFaced = document.getElementById('balls_faced').value;
+            const overs = document.getElementById('overs').value;
+
+            // Construct the data to send in the request
+            const data = {
+                Player: player,
+                Opposition: opposition,
+                BF: ballsFaced,
+                Overs: overs
+            };
+
+            // Make a POST request to the Flask server
+            fetch('/predict', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data),
+            })
+                .then(response => response.json())
+                .then(data => {
+                    // Display the prediction result using Bootstrap's alert for aesthetics
+                    const predictionResult = document.getElementById('predictionResult');
+                    predictionResult.innerHTML = `<div class="alert alert-success" role="alert">${data.message}</div>`;
+                    predictionResult.style.display = 'block'; // Make sure the result is visible
+                })
+                .catch((error) => {
+                    console.error('Error:', error);
+                    // Optionally handle errors by displaying them in a similar styled alert
+                    const predictionResult = document.getElementById('predictionResult');
+                    predictionResult.innerHTML = `<div class="alert alert-danger" role="alert">Error: Could not retrieve prediction.</div>`;
+                    predictionResult.style.display = 'block';
+                });
+        });
+
+
+    </script>
+    <script>
+        AOS.init();
+    </script>
+
+
+</body>
+
+</html>
