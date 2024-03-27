@@ -1,31 +1,23 @@
-from flask import Flask, request, jsonify, send_from_directory
 import joblib
-import numpy as np
 
-from flask import Flask, request, g, redirect, url_for, render_template, flash
-from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from flask import Flask, session, redirect, url_for, request, flash, render_template,jsonify, send_from_directory
+from functools import wraps
+
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 
-import pandas as pd
 
 import requests
 
+import pandas as pd
+
 
 app = Flask(__name__, static_url_path='', static_folder='static')
-
+DATABASE = 'app.db'
 app.secret_key = 'your_secret_key'
 
 # Load the CSV data into a pandas DataFrame
 df = pd.read_csv('Batsman_Data.csv')
-
-DATABASE = 'app.db'
-
-
-# Database connection and query functions
-login_manager = LoginManager()
-login_manager.init_app(app)
-login_manager.login_view = 'login'
 
 def get_db_connection():
     conn = sqlite3.connect(DATABASE)
@@ -35,47 +27,44 @@ def get_db_connection():
 def create_users_table():
     conn = get_db_connection()
     conn.execute('''CREATE TABLE IF NOT EXISTS users 
-                    (id INTEGER PRIMARY KEY, username TEXT UNIQUE, password TEXT)''')
+                    (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE, password TEXT)''')
     conn.commit()
     conn.close()
 
 create_users_table()
 
-class User(UserMixin):
-    def __init__(self, id_, username):
-        self.id = id_
-        self.username = username
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        print("hello")
+        if 'username' not in session:
+            flash('You need to be logged in to view this page.')
+            print("Username not in session")
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
 
-    @staticmethod
-    def get(user_id):
-        conn = get_db_connection()
-        user = conn.execute('SELECT * FROM users WHERE id = ?', (user_id,)).fetchone()
-        conn.close()
-        if user:
-            return User(id_=user['id'], username=user['username'])
-        return None
-
-@login_manager.user_loader
-def load_user(user_id):
-    return User.get(user_id)
-
+@login_required
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
     if request.method == 'POST':
         username = request.form['username']
-        password = request.form['password']
-        hashed_password = generate_password_hash(password)
-        conn = get_db_connection()
+        password = request.form['password']  # In a real application, you should hash the password
+        
         try:
-            conn.execute('INSERT INTO users (username, password) VALUES (?, ?)', (username, hashed_password))
+            conn = get_db_connection()
+            conn.execute('INSERT INTO users (username, password) VALUES (?, ?)', (username, password))
             conn.commit()
         except sqlite3.IntegrityError:
-            flash('Username already exists.')
+            flash('Username already exists. Try a different one.')
             return redirect(url_for('signup'))
         finally:
             conn.close()
+        
+        flash('Signup successful. Please login.')
         return redirect(url_for('login'))
     return render_template('signup.html')
+
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -86,19 +75,34 @@ def login():
         conn = get_db_connection()
         user = conn.execute('SELECT * FROM users WHERE username = ?', (username,)).fetchone()
         conn.close()
-        if user and check_password_hash(user['password'], password):
-            user_obj = User(id_=user['id'], username=user['username'])
-            login_user(user_obj)
-            return redirect(url_for('protected'))
-        flash('Invalid username or password.')
-        print("invalid username and password")
+        
+        if user is None:
+            flash('Username not found.')
+        elif not user['password'] == password:
+            flash('Password is incorrect.')
+        else:
+            session['username'] = user['username']
+            print("Setting username in session")
+            session['username'] = user['username']
+            print("Username set in session:", session['username'])
+
+            return redirect(url_for('index'))
     return render_template('login.html')
 
-@app.route('/logout')
+
+
+
+
+
+
 @login_required
+@app.route('/logout')
 def logout():
-    logout_user()
-    return redirect(url_for('login'))
+    print(session.pop('username', None))
+    return redirect(url_for('index'))
+
+
+
 
 
 
@@ -107,11 +111,6 @@ rf_model = joblib.load('rf_model.pkl')
 model_columns = joblib.load('model_columns.pkl')
 
 
-from flask import Flask, render_template
-import pandas as pd
-import os
-
-app = Flask(__name__)
 
 # Assuming your CSV files are in the same directory as your Flask app
 BOWLER_DATA_PATH = 'Bowler_data.csv'
@@ -124,9 +123,12 @@ def clean_opposition(dataframe):
     
     return dataframe
 
-
+@login_required
 @app.route('/prediction', methods=['GET'])
 def predict_frontend():
+    if 'username' not in session:
+        flash('You need to be logged in to view this page.')
+        return redirect(url_for('login'))
     # Load datasets
     bowler_df = pd.read_csv(BOWLER_DATA_PATH)
     batsmen_df = pd.read_csv(BATSMEN_DATA_PATH)
@@ -170,6 +172,10 @@ def preprocess_user_input(data):
 
 @app.route('/predict', methods=['POST'])
 def predict_runs():
+    if 'username' not in session:
+        flash('You need to be logged in to view this page.')
+        return jsonify({"message": "User Not logged in"})
+    
     data = request.get_json(force=True)
     try:
         input_data = pd.DataFrame([data])
@@ -183,6 +189,9 @@ def predict_runs():
 
 @app.route('/search_batsmen', methods=['GET'])
 def search_batsment():
+    if 'username' not in session:
+        flash('You need to be logged in to view this page.')
+        return redirect(url_for('login'))
     # Get the query parameter for search
     query = request.args.get('query', '').lower()
     
@@ -197,8 +206,12 @@ def search_batsment():
     return jsonify(result)
 
 
+@login_required
 @app.route('/batsmen', methods=['GET'])
 def get_batsmen():
+    if 'username' not in session:
+        flash('You need to be logged in to view this page.')
+        return redirect(url_for('login'))
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 10, type=int)  # Default to 10 items per page
     
@@ -211,6 +224,9 @@ def get_batsmen():
 
 @app.route('/batsmen_data')
 def bastmen():
+    if 'username' not in session:
+        flash('You need to be logged in to view this page.')
+        return redirect(url_for('login'))
     return app.send_static_file('batsmen.html')
 
 
@@ -223,6 +239,9 @@ df_bowlers = pd.read_csv('Bowler_data.csv')
 
 @app.route('/search_bowler', methods=['GET'])
 def search_bowler():
+    if 'username' not in session:
+        flash('You need to be logged in to view this page.')
+        return redirect(url_for('login'))
     # Get the query parameter for search
     query = request.args.get('query', '').lower()
     
@@ -239,6 +258,10 @@ def search_bowler():
 
 @app.route('/bowler', methods=['GET'])
 def get_bowler():
+    if 'username' not in session:
+        flash('You need to be logged in to view this page.')
+        return redirect(url_for('login'))
+    
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 10, type=int)  # Default to 10 items per page
     
@@ -253,11 +276,18 @@ def get_bowler():
 
 @app.route('/bowler_data')
 def bowler_data():
+    if 'username' not in session:
+        flash('You need to be logged in to view this page.')
+        return redirect(url_for('login'))
     return app.send_static_file('bowler.html')
 
 
 @app.route('/live_matches', methods=['GET'])
 def get_live_matches():
+    if 'username' not in session:
+        flash('You need to be logged in to view this page.')
+        return redirect(url_for('login'))
+    
     api_url = 'https://api.cricapi.com/v1/currentMatches?apikey=f83f0d13-0caf-4c22-b23c-1b86d52af79b&offset=0'
     response = requests.get(api_url)
     if response.status_code == 200:
@@ -270,11 +300,17 @@ def get_live_matches():
 
 @app.route("/live", methods = ['GET'])
 def live():
+    if 'username' not in session:
+        flash('You need to be logged in to view this page.')
+        return redirect(url_for('login'))
     return app.send_static_file('live.html')
 
 
 @app.route("/")
 def index():
+    if 'username' not in session:
+        flash('You need to be logged in to view this page.')
+        return redirect(url_for('login'))
     return app.send_static_file('index.html')
 
 if __name__ == '__main__':
