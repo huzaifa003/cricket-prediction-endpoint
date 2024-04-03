@@ -11,9 +11,12 @@ import pandas as pd
 
 import requests
 
+from flask_cors import CORS
 
 app = Flask(__name__, static_url_path='', static_folder='static')
 
+# After app is created
+CORS(app)
 app.secret_key = 'your_secret_key'
 
 # Load the CSV data into a pandas DataFrame
@@ -268,14 +271,26 @@ def get_live_matches():
         return jsonify({'error': 'Failed to fetch live matches data'}), response.status_code
 
 
+
+
 @app.route("/live", methods = ['GET'])
 def live():
     return app.send_static_file('live.html')
+@app.route("/players_table")
+def players_table():
+    return app.send_static_file('players_table.html')
+
+@app.route("/fantasyMatches")
+def fantasyMatches():
+    return app.send_static_file('FantasyMatches.html')
 
 
 @app.route("/")
 def index():
     return app.send_static_file('index.html')
+
+
+
 
 if __name__ == '__main__':
     app.run(port=4000,debug=True)
