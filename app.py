@@ -310,6 +310,31 @@ def live():
         flash('You need to be logged in to view this page.')
         return redirect(url_for('login'))
     return app.send_static_file('live.html')
+
+
+@app.route("/currentMatches", methods=['GET'])
+def currentMatches():
+    if 'username' not in session:
+        flash('You need to be logged in to view this page.')
+        return redirect(url_for('login'))
+    return app.send_static_file('currentMatches.html')
+
+API_URL = "https://api-inference.huggingface.co/models/google/gemma-7b-it"
+HEADERS = {"Authorization": "Bearer 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"}
+
+@app.route("/query", methods=["POST"])
+def query():
+    payload = request.json
+    response = requests.post(API_URL, headers=HEADERS, json=payload)
+    return jsonify(response.json())
+    
+@app.route("/chatbot", methods=['GET'])
+def chatbot():
+    if 'username' not in session:
+        flash('You need to be logged in to view this page.')
+        return redirect(url_for('login'))
+    return app.send_static_file('Chatbot.html')
+
 @app.route("/players_table")
 def players_table():
     return app.send_static_file('players_table.html')
